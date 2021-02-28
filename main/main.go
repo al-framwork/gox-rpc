@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	goxrpc "gox-rpc"
 	"log"
 	"net"
 	"sync"
@@ -19,7 +21,7 @@ func (f Foo) Sum(args Args, reply *int) error {
 func startServer(addr chan string) {
 	var foo Foo
 
-	if err := Register(&foo); err != nil {
+	if err := goxrpc.Register(&foo); err != nil {
 		log.Fatal("register error:", err)
 	}
 	// pick a free port
@@ -29,7 +31,7 @@ func startServer(addr chan string) {
 	}
 	log.Println("start rpc server on", l.Addr())
 	addr <- l.Addr().String()
-	Accept(l)
+	goxrpc.Accept(l)
 }
 
 func main() {
@@ -37,7 +39,7 @@ func main() {
 	go startServer(addr)
 
 	// in fact, following code is like a simple gox client
-	client, _ := Dial("tcp", <-addr)
+	client, _ := goxrpc.Dial("tcp", <-addr)
 	defer func() { _ = client.Close() }()
 
 	time.Sleep(time.Second)
@@ -49,8 +51,9 @@ func main() {
 		go func(i int) {
 			defer wg.Done()
 			args := &Args{Num1: i, Num2: i * i}
+			ctx, _ := context.WithTimeout(context.Background(), time.Second)
 			var reply int
-			if err := client.Call("Foo.Sum", args, &reply); err != nil {
+			if err := client.Call(ctx, "Foo.Sum", args, &reply); err != nil {
 				log.Fatal("call Foo.Sum error:", err)
 			}
 			log.Printf("%d + %d = %d", args.Num1, args.Num2, reply)
